@@ -1,7 +1,17 @@
 # Pls use G:\sw\Python35-32-temp
+
+# 策略：5日（Shortperiod）均綫斜率>0.1 （sma1_slope_threshold）,
+# # 并且30日(Longperiod)均綫綫斜率>0.1（sma2_slope_threshold）就買，
+# 5日均綫斜率由正轉負，就賣
+
+# 測試數據：不好，
+
+# 分析，因爲均綫指標延後，反應遲鈍，而股市變化劇烈，尤其是在跌的時候，
+# 都是立馬就跌下去了，反應呢慢了一點就不行了
 from datetime import datetime
 import backtrader as bt
 
+commission_fee = 0.003
 Shortperiod=7
 Longperiod=30
 
@@ -10,15 +20,17 @@ NYEAR = 2
 MY_stake = 100*5
 STOCKNAME='1810.HK'
 
-sma1_slope_threshold = -100
+sma1_slope_threshold = 0.1
+sma2_slope_threshold = 0.1
 
 if 1:
     YEAR = 2018
-    NYEAR = 2
+    NYEAR = 1
     MY_stake = 100
     STOCKNAME='0522.HK'
-    #Shortperiod=5
     sma1_slope_threshold = 0.0
+    sma2_slope_threshold = 0.0
+    #commission_fee = 0
 if 0:
     YEAR = 2018
     NYEAR = 2
@@ -55,11 +67,12 @@ class SmaCross(bt.SignalStrategy):
 
     def next(self):
         sma1_slope = self.sma1[0] - self.sma1[-1]
+        sma2_slope = self.sma2[0] - self.sma2[-1]
         if not self.position:
-            if self.crossover > 0 and sma1_slope>sma1_slope_threshold:
+            if sma1_slope > sma1_slope_threshold and sma2_slope > sma2_slope_threshold:
                 self.buy()
 
-        elif self.crossover < 0:
+        elif sma1_slope < 0:
             self.close()
 
     def log(self, txt, dt=None):
@@ -112,7 +125,7 @@ data0 = bt.feeds.YahooFinanceData(dataname=STOCKNAME, fromdate=datetime(YEAR, 1,
                                   todate=datetime(YEAR + NYEAR, 1, 1))
 cerebro.adddata(data0)
 
-cerebro.broker.setcommission(commission=0.003)
+cerebro.broker.setcommission(commission=commission_fee)
 cerebro.broker.setcash(20000)
 cerebro.addsizer(bt.sizers.SizerFix, stake=MY_stake)
 
