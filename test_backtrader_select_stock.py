@@ -7,7 +7,7 @@ import collections
 quotation = easyquotation.use("daykline")
 
 FOLDER = r'temp\\%s'%(date.today().strftime("%Y%m%d"))
-#FOLDER = r'temp\data20200917'
+FOLDER = r'temp\\20200927'
 FILE_FORMAT = FOLDER + '\\%.5d.txt'
 
 def is_equ(f1, f2):
@@ -190,7 +190,7 @@ assert not is_lowest_these_days(3,3,[5,4,3,2,1,2,3])
 assert is_lowest_these_days(3,3,[4,3,2,1,2,3,4])        
 
 def is_SMA_pass(sma1_period, sma2_period, data_close):
-    daysbefore = -2
+    daysbefore = -3
     data_sma1 = SMA(sma1_period, data_close)
     data_sma2 = SMA(sma2_period, data_close)
     is_last_week_less = data_sma1[daysbefore] < data_sma2[daysbefore]
