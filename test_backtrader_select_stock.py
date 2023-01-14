@@ -3,6 +3,7 @@ import json
 from datetime import date
 import os
 import collections
+import logging
 
 quotation = easyquotation.use("daykline")
 
@@ -125,17 +126,17 @@ class MyPrinter:
     def print(self, d, **kwargs):
         if not self.is_head_printed:
             for k, v in d.items():
-                print("%15s"%(str(k)), end='')
+                print("%s\t"%(str(k)), end='')
 
             for key, value in kwargs.items():
-                print("%15s"%(key), end='')
+                print("%s\t"%(key), end='')
             print()
             self.is_head_printed = True
 
         for k, v in d.items():
-            print("%15s"%(str(v)), end='')
+            print("%s\t"%(str(v)), end='')
         for key, value in kwargs.items():
-            print("%15s"%(value), end='')
+            print("%s\t"%(value), end='')
         print()
 
 def grow_rate(yesterday, today):
@@ -165,23 +166,41 @@ def GetDatalines(stock_id):
     data = get_first_value(data1)
     if len(data) < 100:
         return None
-    if data[-1][0].find("2020-09") < 0:
-        # print (data[-1][0])
+    thisMonth = date.today().strftime("%Y-%m")
+    if data[-1][0].find(thisMonth) < 0:
+        logging.error(f'stock={stock_id}, Cannot find this month = {thisMonth} data')
         return None
     return DataLines(data)
         
-def is_lowest_these_days(days1, days2, data_close ):
-    assert(days1>=1)
-    assert(days2>=1)
+def is_lowest_these_days(num_days_increasing:int, num_days_decreasing:int, data_close:list ):
+    """ whether the stock is in lowest price
+ 
+    檢查價格滿足如下趨勢：首先連續num_days_decreasing的下降，然後連續num_days_increasing的增長
+ 
+    Parameters
+    ------------
+        num_days_increasing: int
+            時間範圍，在這個時間範圍檢查價格持續增長
+        num_days_decreasing: int
+            時間範圍，在這個時間範圍檢查價格持續降低
+        data_close: list
+            要檢查的數據
+    Return
+    -----------
+        is_lowest_these_days : bool
+            True if the stock is in lowest price
+    """    
+    assert(num_days_increasing>=1)
+    assert(num_days_decreasing>=1)
     grow_rate_tol_grow = 0.005
     grow_rate_tol_dec = 0.001
     
-    # rates_near = grow_rates(data_close[-days1:])
-    # rates_far = grow_rates(data_close[(-days2-days1):(-days1)])
+    # rates_near = grow_rates(data_close[-num_days_increasing:])
+    # rates_far = grow_rates(data_close[(-num_days_decreasing-num_days_increasing):(-num_days_increasing)])
     # is_ctus_grow = all([x>grow_rate_tol_grow for x in rates_near])
     # is_ctus_decrease = all([x<-grow_rate_tol_dec for x in rates_far])
-    is_ctus_grow = all([grow_rate(data_close[i-1],data_close[i])>grow_rate_tol_grow for i in range(-1, -days1-1, -1)])
-    is_ctus_decrease = all([grow_rate(data_close[i-1],data_close[i])<-grow_rate_tol_dec for i in range(-days1-1, -days1-days2-1, -1)])
+    is_ctus_grow = all([grow_rate(data_close[i-1],data_close[i])>grow_rate_tol_grow for i in range(-1, -num_days_increasing-1, -1)])
+    is_ctus_decrease = all([grow_rate(data_close[i-1],data_close[i])<-grow_rate_tol_dec for i in range(-num_days_increasing-1, -num_days_increasing-num_days_decreasing-1, -1)])
     is_stg2_pass = is_ctus_grow and is_ctus_decrease
     return is_stg2_pass
 
@@ -197,7 +216,22 @@ def is_SMA_pass(sma1_period, sma2_period, data_close):
     is_today_more = data_sma1[-1] > data_sma2[-1]
     return is_last_week_less and is_today_more
     
-
+def test_asm():
+    printer = MyPrinter()
+    data_lines = GetDatalines(522)
+    
+    for i in range(10):
+        printer.print(
+            {},
+            data_date = data_lines.data_date[-i],
+            data_open = data_lines.data_open[-i],
+            data_close = data_lines.data_close[-i],
+            data_max = data_lines.data_max[-i],
+            data_min = data_lines.data_min[-i],
+            data_deal_num = data_lines.data_deal_num[-i],
+            data_deal_money = data_lines.data_deal_money[-i]
+        )
+    
 def test_strategy(stock_id, printer):
     data_lines = GetDatalines(stock_id)
     if not data_lines: return
@@ -229,13 +263,13 @@ def test_strategy(stock_id, printer):
     is_rsi = is_lowest_these_days(1, 3, rsi1) and rsi1[-1]>=50 and  rsi1[-1]<70
     d=collections.OrderedDict()
     d['sma530'] = int(is_sma530)
-    #d['sma330'] = int(is_sma330)
+    d['sma330'] = int(is_sma330)
     d['is_low3'] = int(is_low3)
     d['is_low2'] = int(is_low2)
     #d['is_low1'] = int(is_low1)
     d['is_rsi'] = int(is_rsi)
     #d['grow_today'] = int(grow_rate(data_close[-2],data_close[-1])>0.04)
-    if any([x for x in d.values()]):
+    if any([x for x in d.values()]) or stock_id in [522]:
         printer.print(
             d,
             stock_id='%d'%stock_id,
@@ -245,12 +279,23 @@ def test_strategy(stock_id, printer):
 
 # save_all_stock_info()
 
-printer = MyPrinter()
-bGetData = int(input('Turn on Get Data 1/0?'))
-if bGetData==1:
-    os.system('md %s'%FOLDER)
-
-for i in range(9999):
+def main():
+    print('''
+sma530: 是否五天均綫跨越30天均綫
+sma330: 是否3天均綫跨越30天均綫
+is_low3： 首先連續3的下降，然後連續3天的增長
+is_low2：首先連續3的下降，然後連續2天的增長
+is_rsi:??    
+        ''')
+    printer = MyPrinter()
+    bGetData = int(input('Turn on Get Data 1/0?'))
     if bGetData==1:
-        save_stock_info(i)
-    test_strategy(i, printer)
+        os.system('md %s'%FOLDER)
+
+    for i in range(9999):
+        if bGetData==1:
+            save_stock_info(i)
+        test_strategy(i, printer)
+
+test_asm()
+main()
