@@ -348,18 +348,20 @@ def test_strategy(stock_id):
             deal_num = '%d'%is_deal_num_ratio_pass,
             rsi1 = '%.2f'%rsi1[-1] )
 
-        days = min(360,len(data_close)-1)
+        days = min(200,len(data_close)-1)
         x = range(-days, 0)
         fig, ax = plt.subplots( nrows=1, ncols=1 )
         
         ax.plot(x,data_close[-days:],label=f'{stock_id} data_close')
         
         sma50 = SMA(50, data_close)
-        sma50[-1]
         ax.plot(x,sma50[-days:],label=f'{stock_id} sma50')
 
-        sma5 = SMA(5, data_close)
-        ax.plot(x,sma5[-days:],label=f'{stock_id} sma5')
+        sma30 = SMA(30, data_close)
+        ax.plot(x,sma30[-days:],label=f'{stock_id} sma30')
+
+        sma15 = SMA(15, data_close)
+        ax.plot(x,sma15[-days:],label=f'{stock_id} sma15')
 
         ax.legend()
         #plt.show()
@@ -370,6 +372,8 @@ def test_strategy(stock_id):
         MyPrint(f'![{stock_id}]({stock_id}.png)')
         MyPrint()
 
+        news = stock_news.get_stock_news(stock_id)
+        MyPrint(news)
 # save_all_stock_info()
 
 def main_flow(bGetData):
@@ -384,14 +388,17 @@ is_rsi:??
     
     if bGetData==1:
         os.system('md %s'%FOLDER)
+    else:
+        def get_stock_news(stock_id):
+            return ''
+        stock_news.get_stock_news = get_stock_news
 
-    for i in range(9999):
+    for i in range(999):
         if bGetData==1:
             save_stock_info(i)
         test_strategy(i)
         
-        news = stock_news.get_stock_news(i)
-        MyPrint(news)
+       
 
 def main():
     #bGetData = int(input('Turn on Get Data 1/0?'))
@@ -407,6 +414,55 @@ def main():
     print(f'args.downloaddata {args.downloaddata}')
     main_flow(args.downloaddata)
 
+# fc-list :lang=zh
+# https://blog.kelu.org/tech/2022/03/09/pandoc-md-to-pdf-with-chinese-charator.html
+'''
+/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc: Noto Serif CJK SC:style=Bold
+/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc: Noto Serif CJK TC:style=Bold
+/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc: Noto Serif CJK JP:style=Bold
+/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc: Noto Serif CJK KR:style=Bold
+/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc: Noto Sans CJK JP:style=Regular
+/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc: Noto Sans CJK HK:style=Regular
+/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc: Noto Sans CJK KR:style=Regular
+/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc: Noto Sans CJK SC:style=Regular
+/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc: Noto Sans CJK TC:style=Regular
+/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc: Noto Serif CJK SC:style=Regular
+/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc: Noto Serif CJK TC:style=Regular
+/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc: Noto Serif CJK JP:style=Regular
+/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc: Noto Serif CJK KR:style=Regular
+/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf: Droid Sans Fallback:style=Regular
+/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc: Noto Sans Mono CJK TC:style=Bold
+/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc: Noto Sans Mono CJK SC:style=Bold
+/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc: Noto Sans Mono CJK KR:style=Bold
+/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc: Noto Sans Mono CJK HK:style=Bold
+/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc: Noto Sans Mono CJK JP:style=Bold
+/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc: Noto Sans Mono CJK SC:style=Regular
+/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc: Noto Sans Mono CJK TC:style=Regular
+/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc: Noto Sans Mono CJK HK:style=Regular
+/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc: Noto Sans Mono CJK KR:style=Regular
+/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc: Noto Sans Mono CJK JP:style=Regular
+/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc: Noto Sans CJK JP:style=Bold
+/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc: Noto Sans CJK KR:style=Bold
+/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc: Noto Sans CJK HK:style=Bold
+/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc: Noto Sans CJK TC:style=Bold
+/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc: Noto Sans CJK SC:style=Bold
+
+ pandoc --pdf-engine=xelatex -V CJKmainfont="Noto Serif CJK SC" 1.md -o 1.pdf
+'''
+
+def MarkdownToPdf(MDFILE):
+    
+    # Work but not support chinese
+    #command = f'/home/cutepig/.local/bin/mdpdf {MDFILE} -o {MDFILE}.pdf'
+    
+    # Good
+    command = f'pandoc --pdf-engine=xelatex -V CJKmainfont="Noto Serif CJK SC"  {MDFILE} -o {MDFILE}.pdf'
+    
+    #command = f'/home/cutepig/.local/bin/md2pdf {MDFILE} {MDFILE}.pdf'
+    
+    print(command)
+    os.system(command)
+    
 test_asm()
 test_strategy(522)
 main()
@@ -414,12 +470,9 @@ main()
 FP.close()
 
 print()
-command = f'/home/cutepig/.local/bin/mdpdf {MDFILE} -o {MDFILE}.pdf'
-#command = f'/home/cutepig/.local/bin/md2pdf {MDFILE} {MDFILE}.pdf'
-print(command)
-os.system(command)
+MarkdownToPdf(MDFILE)
 
 print()
 print('send file to TG')
-
 telegram.SendToMyTGChannelFile(f'{MDFILE}.pdf')
+telegram.SendToMyTGChannelFile(f'{MDFILE}')
