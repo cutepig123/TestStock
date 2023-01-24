@@ -1,29 +1,49 @@
 import easyquotation
 import json
 from datetime import date
-import os
+import os, sys
 import collections
 import logging
+import matplotlib.pyplot as plt
+import numpy as np
+import telegram
+import argparse
+import stock_news
 
 quotation = easyquotation.use("daykline")
 
-FOLDER = r'temp\\%s'%(date.today().strftime("%Y%m%d"))
-FOLDER = r'temp\\20200927'
-FILE_FORMAT = FOLDER + '\\%.5d.txt'
+FOLDER = r'temp/%s'%(date.today().strftime("%Y%m%d"))
+FOLDER = r'temp/20200927'
+FILE_FORMAT = FOLDER + '/%.5d.txt'
+
+SCRIPT_FOLDER=os.path.dirname(os.path.realpath(__file__))
+os.chdir(SCRIPT_FOLDER)
+
+MDFILE='1.md'
+FP = open(MDFILE, 'w', encoding='utf-8')
+
+def MyPrint(*args):
+    for x in args:
+        FP.write(str(x))
+        FP.write(' ')
+    FP.write('\n')
+
+def MyWrite(x):
+    FP.write(x)
 
 def is_equ(f1, f2):
     return abs(f1-f2)<0.001
 
 def save_stock_info(stock_id):
     try:
-        # print(stock_id)
+        # MyPrint(stock_id)
         # http://sqt.gtimg.cn/utf8/q=r_hk00700
         data = quotation.real(['%.5d' % stock_id])
         s = json.dumps(data)
         with open(FILE_FORMAT % stock_id, 'w') as f:
             f.write(s)
     except e:
-        print(e)
+        MyPrint(e)
 
 class SMA:
     def __init__(self, period, data):
@@ -33,8 +53,21 @@ class SMA:
     # Follow pyhton convension
     # [-1] the last element
     def __getitem__(self, i):
+        key = i
+        if isinstance(key, slice):
+            # Get the start, stop, and step from the slice
+            return [self[ii] for ii in range(*key.indices(len(self)))]
+
         n = len(self.data)
-        return sum(self.data[(n+i-self.period+1):(n+i+1)])/self.period
+        idx = i
+        if idx < 0:
+            idx = len(self) + idx
+        if idx < 0 or idx >= len(self):
+            raise IndexError("array index (%d) out of range [0, %d)" %(idx, len(self)))
+        
+        p2 = idx+1
+        p1 = max(p2-self.period, 0)
+        return sum(self.data[p1:p2])/self.period
 
     def __len__(self):
         return len(self.data)
@@ -49,6 +82,11 @@ class RSI:
     # Follow pyhton convension
     # [-1] the last element
     def __getitem__(self, i):
+        key = i
+        if isinstance(key, slice):
+            # Get the start, stop, and step from the slice
+            return [self[ii] for ii in range(*key.indices(len(self)))]
+
         n = len(self.data)
         inc = 0
         dec = 0
@@ -96,12 +134,19 @@ class DataLine:
             # Get the start, stop, and step from the slice
             return [self[ii] for ii in range(*key.indices(len(self)))]
 
-        if i in self.data:
-            return self.data[i]
+        n = len(self.data)
+        idx = i
+        if idx < 0:
+            idx = len(self) + idx
+        if idx < 0 or idx >= len(self):
+            raise IndexError("array index (%d) out of range [0, %d)" %(idx, len(self)))
+        
+        if idx in self.data:
+            return self.data[idx]
 
         #["2020-09-17", "0.660", "0.650", "0.660", "0.640", "1200500.000", {}, "0.000", "77.361"]
         ## [日期, 今开, 今收, 最高, 最低, 成交量 ]
-        t = (self.raw_data[i][self.idx])
+        t = (self.raw_data[idx][self.idx])
         if self.isNum:
             t = float(t)
         self.data[i] = t
@@ -119,26 +164,36 @@ def get_first_value(mydict):
 def slope(a, b):
     return (a-b)/(a+b)
 
+class MarkdownRowFormat:
+    def __init__(self):
+        pass
+
+    def title(self, titles:list):
+        l1 = '|' + '|'.join(titles) + '|\n'
+        l2 = '|' + '|'.join(['----' for _ in titles])+ '|\n'
+        return '\n' + l1 + l2
+
+    def data_row(self, data:list):
+        l1 = '|' + '|'.join(data) + '|\n'
+        return l1
+    
 class MyPrinter:
     def __init__(self):
         self.is_head_printed = False
+        self.row_formater = MarkdownRowFormat()
+        
 
     def print(self, d, **kwargs):
+        all_data = {**d, **kwargs}
         if not self.is_head_printed:
-            for k, v in d.items():
-                print("%s\t"%(str(k)), end='')
-
-            for key, value in kwargs.items():
-                print("%s\t"%(key), end='')
-            print()
+            titles = [str(k) for k in all_data.keys()]
+            MyWrite(self.row_formater.title(titles))
+            
             self.is_head_printed = True
 
-        for k, v in d.items():
-            print("%s\t"%(str(v)), end='')
-        for key, value in kwargs.items():
-            print("%s\t"%(value), end='')
-        print()
-
+        values = [str(k) for k in all_data.values()]
+        MyWrite(self.row_formater.data_row(values))
+        
 def grow_rate(yesterday, today):
     return 2.0*(today-yesterday)/(today+yesterday+0.00000001)
 
@@ -216,7 +271,16 @@ def is_SMA_pass(sma1_period, sma2_period, data_close):
     is_today_more = data_sma1[-1] > data_sma2[-1]
     return is_last_week_less and is_today_more
     
+def plot_stock(data_lines:DataLines, days:int):
+    x = range(-days, 0)
+    data_close,=plt.plot(x,data_lines.data_close[-days:],label='data_close')
+    plt.legend()
+    #plt.show()
+    plt.savefig('foo.png')
+
 def test_asm():
+    MyPrint()
+    MyPrint('# 522')
     printer = MyPrinter()
     data_lines = GetDatalines(522)
     
@@ -231,8 +295,12 @@ def test_asm():
             data_deal_num = data_lines.data_deal_num[-i],
             data_deal_money = data_lines.data_deal_money[-i]
         )
+
+        
+
+    plot_stock(data_lines, 360)
     
-def test_strategy(stock_id, printer):
+def test_strategy(stock_id):
     data_lines = GetDatalines(stock_id)
     if not data_lines: return
     
@@ -270,6 +338,9 @@ def test_strategy(stock_id, printer):
     d['is_rsi'] = int(is_rsi)
     #d['grow_today'] = int(grow_rate(data_close[-2],data_close[-1])>0.04)
     if any([x for x in d.values()]) or stock_id in [522]:
+        MyPrint()
+        MyPrint('# ', stock_id)
+        printer = MyPrinter()
         printer.print(
             d,
             stock_id='%d'%stock_id,
@@ -277,25 +348,78 @@ def test_strategy(stock_id, printer):
             deal_num = '%d'%is_deal_num_ratio_pass,
             rsi1 = '%.2f'%rsi1[-1] )
 
+        days = min(360,len(data_close)-1)
+        x = range(-days, 0)
+        fig, ax = plt.subplots( nrows=1, ncols=1 )
+        
+        ax.plot(x,data_close[-days:],label=f'{stock_id} data_close')
+        
+        sma50 = SMA(50, data_close)
+        sma50[-1]
+        ax.plot(x,sma50[-days:],label=f'{stock_id} sma50')
+
+        sma5 = SMA(5, data_close)
+        ax.plot(x,sma5[-days:],label=f'{stock_id} sma5')
+
+        ax.legend()
+        #plt.show()
+        fig.savefig(f'{stock_id}.png')
+        plt.close(fig)
+        
+        MyPrint()
+        MyPrint(f'![{stock_id}]({stock_id}.png)')
+        MyPrint()
+
 # save_all_stock_info()
 
-def main():
-    print('''
+def main_flow(bGetData):
+    MyPrint('''
 sma530: 是否五天均綫跨越30天均綫
 sma330: 是否3天均綫跨越30天均綫
 is_low3： 首先連續3的下降，然後連續3天的增長
 is_low2：首先連續3的下降，然後連續2天的增長
 is_rsi:??    
         ''')
-    printer = MyPrinter()
-    bGetData = int(input('Turn on Get Data 1/0?'))
+    
+    
     if bGetData==1:
         os.system('md %s'%FOLDER)
 
     for i in range(9999):
         if bGetData==1:
             save_stock_info(i)
-        test_strategy(i, printer)
+        test_strategy(i)
+        
+        news = stock_news.get_stock_news(i)
+        MyPrint(news)
+
+def main():
+    #bGetData = int(input('Turn on Get Data 1/0?'))
+    parser = argparse.ArgumentParser(
+                    prog = 'stoke selector',
+                    description = 'What the program does',
+                    epilog = 'Text at the bottom of help')
+    #parser.add_argument('filename')           # positional argument
+    #parser.add_argument('-c', '--count')      # option that takes a value
+    parser.add_argument('-d', '--downloaddata',
+                        action='store_true')  # on/off flag   
+    args = parser.parse_args()
+    print(f'args.downloaddata {args.downloaddata}')
+    main_flow(args.downloaddata)
 
 test_asm()
+test_strategy(522)
 main()
+
+FP.close()
+
+print()
+command = f'/home/cutepig/.local/bin/mdpdf {MDFILE} -o {MDFILE}.pdf'
+#command = f'/home/cutepig/.local/bin/md2pdf {MDFILE} {MDFILE}.pdf'
+print(command)
+os.system(command)
+
+print()
+print('send file to TG')
+
+telegram.SendToMyTGChannelFile(f'{MDFILE}.pdf')
